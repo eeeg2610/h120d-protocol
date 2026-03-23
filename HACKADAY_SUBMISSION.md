@@ -1,22 +1,105 @@
-# Hackaday Submission: Reverse-Engineering the Holy Stone H120D Drone Protocol
+# Hackaday Submission Guide
 
-> **Title:** Reverse-Engineering a Consumer GPS Drone: From APK Teardown to Autonomous Flight
->
-> **Subtitle:** The Holy Stone H120D runs RT-Thread on a Fullhan SoC, bans your MAC if you telnet in, and doesn't actually use its own joystick code
->
-> **GitHub:** https://github.com/zturner1/h120d-protocol
->
-> **Author:** Zac Turner
+Everything you need to submit, copy-paste ready.
 
 ---
 
-## The Story
+## Option A: Email (Recommended)
+
+**To:** tips@hackaday.com
+
+**Subject:** Inside the Holy Stone H120D: RT-Thread RTOS, a Telnet MAC Ban, and Autonomous Flight via Arduino
+
+**Body:**
+
+---
+
+Hey Hackaday team,
+
+I reverse-engineered the WiFi protocol of the Holy Stone H120D GPS drone — full protocol teardown, working control scripts, and autonomous flight from an Arduino Nano 33 IoT. This is the first public documentation of this drone's protocol.
+
+**What is it?**
+
+A complete protocol decode of the H120D's WiFi command interface, built by decompiling the stock Android APK (jadx), capturing packets (tcpdump on a rooted tablet), disassembling the native ARM JNI library, and exploring the onboard RTOS via telnet.
+
+**The weird stuff I found:**
+
+- **The Telnet Trap:** The drone runs RT-Thread 2.1.0 on a Fullhan Micro SoC (not HiSilicon, despite the app's Java class names). Connecting to the RTOS shell on TCP 23 triggers an immediate MAC-level ban — the drone blackholes all traffic from that MAC until power-cycled. I built a telnet bridge through an Arduino (different MAC) to bypass it.
+
+- **Fake RTSP, Real TCP:** Port 554 is open but delivers nothing. The actual video stream lives on TCP 8888 — H.264 wrapped in custom 44-byte frame headers. Send an 11-byte heartbeat and you get 720p 25fps video (despite the handshake proudly claiming "1080P").
+
+- **The GPS Gate:** The drone refuses flight commands until you feed it GPS packets reporting accuracy ≤ 3 meters. The "state bytes" I initially mistook for an arming state machine (7→6→5→4→3) turned out to be literal GPS accuracy in meters — my tablet's GPS warming up.
+
+- **Dead Code in the Native Library:** I fully disassembled `convertHyControl()` (1,648 bytes of ARM Thumb) — it maps joystick axes and 20+ control flags into a 13-byte payload. Then I found it's never called from Java. The stock app hardcodes all axes to center and only sends takeoff/land/goHome flags. The physical RC handles all real flight control over 2.4GHz radio, completely independent of WiFi.
+
+**What I built:**
+
+- Python controller (stdlib only, zero pip installs) — handshake, heartbeat, GPS, flight commands
+- Live video viewer — strips custom headers, pipes H.264 to ffplay
+- Arduino Nano 33 IoT autonomous controller — connects to drone WiFi independently, performs full handshake, achieved autonomous takeoff and landing
+- HiSi camera command tool — photo, video recording, sensor queries over UDP 8088
+
+**Links:**
+
+- GitHub: https://github.com/zturner1/h120d-protocol
+- [TODO: YouTube video of Arduino autonomous flight]
+- [TODO: Photo of test setup — drone, Arduino, ALFA adapter, tablet]
+
+Feel free to credit me as zturner1 (Zac Turner).
+
+Thanks!
+Zac
+
+---
+
+## Option B: Web Form (https://hackaday.com/submit-a-tip/)
+
+| Field | Value |
+|-------|-------|
+| **Your Name or Alias** | zturner1 |
+| **Email** | [your email] |
+| **Subject** | Inside the Holy Stone H120D: RT-Thread RTOS, a Telnet MAC Ban, and Autonomous Flight via Arduino |
+| **Link to more info** | https://github.com/zturner1/h120d-protocol |
+| **Comment** | *(paste the email body above)* |
+
+---
+
+## Before Submitting: Media Checklist
+
+Hackaday's editors say media is the #1 factor. Get these first:
+
+- [ ] **Hero photo** (3000+ px, good lighting, clean background)
+      → Drone centered, Arduino + ALFA adapter visible, maybe the tablet showing the serial monitor
+- [ ] **Short video** (30-60 seconds, upload to YouTube as unlisted)
+      → Arduino serial monitor showing "AUTONOMOUS TAKEOFF" → drone lifts off
+      → Bonus: screen recording of live_video.py showing the 720p stream
+- [ ] **Screenshot of the RT-Thread shell** — the finsh banner + list_thread() output
+      → Can capture this via the Arduino telnet bridge (TOPEN → TCMD list_thread())
+
+**Once you have the media, replace the [TODO] lines in the email with real links.**
+
+---
+
+## Full Article (for Hackaday.io project page)
+
+Post this as a Hackaday.io project so editors have a rich source to pull from.
+Create a project at https://hackaday.io/project/new — use the content below.
+
+---
+
+### Project Title
+Reverse-Engineering the Holy Stone H120D Drone Protocol
+
+### Project Description (one-liner)
+Complete WiFi protocol documentation and autonomous flight tools for the Holy Stone H120D GPS drone, reverse-engineered from the stock Android APK.
+
+### Detailed Write-Up
 
 I picked up a Holy Stone H120D GPS drone — a mid-range quadcopter with GPS return-to-home, follow-me, and a camera that claims 1080p but actually streams 720p — and wanted to control it from something other than the stock Android app. What started as "just sniff some UDP packets" turned into a deep dive through decompiled Java, ARM disassembly, an RT-Thread RTOS shell, and a telnet server that fights back.
 
 The result: complete protocol documentation, working Python control scripts, an Arduino Nano 33 IoT autonomous controller, and live video streaming — all from scratch, all open source, and the first public documentation of this drone's protocol.
 
-## The Setup
+#### The Setup
 
 The H120D creates its own WiFi access point (`HolyStoneFPV-XXXXXX`, open network) and hands out DHCP addresses in the `172.16.0.0/16` range. The stock app (`com.vison.macrochip.sj.hs.gps.v1`) talks to the drone at `172.16.10.1` over a handful of ports. My test rig:
 
@@ -25,7 +108,7 @@ The H120D creates its own WiFi access point (`HolyStoneFPV-XXXXXX`, open network
 - An Arduino Nano 33 IoT as an autonomous WiFi bridge
 - An ALFA AWUS036NHA for a second WiFi path (so I could stay on my home network while talking to the drone)
 
-## Phase 1: Packet Capture — "It's Just UDP, Right?"
+#### Packet Capture — "It's Just UDP, Right?"
 
 I fired up tcpdump on the tablet while using the stock app normally. The drone uses three main channels:
 
@@ -47,7 +130,7 @@ Flags: `0x01` = takeoff, `0x02` = land, `0x04` = go home, `0x80` = emergency sto
 
 But here's the first surprise.
 
-## The GPS Accuracy Gate
+#### The GPS Accuracy Gate
 
 Before the stock app sends any flight command, it streams 19-byte GPS packets to the drone for about 26 seconds. I initially saw a "state byte" cycling through values 7→6→5→4→3 and assumed it was a state machine — maybe an arming sequence?
 
@@ -55,7 +138,7 @@ Nope. Those values are **literal GPS accuracy in meters**. The packet contains t
 
 Once I figured this out, I set accuracy to 3 from the start. The drone accepted commands immediately.
 
-## Phase 2: The APK Teardown — "Wait, It Never Calls Its Own Function?"
+#### The APK Teardown — "Wait, It Never Calls Its Own Function?"
 
 Decompiling the APK with jadx revealed the full class hierarchy. The interesting stuff lives in `com.vison.baselibrary` and a native library called `libLGDataUtils.so`.
 
@@ -69,7 +152,7 @@ The stock app's `SendControlThread` builds the 12-byte flight packet entirely in
 
 All actual flight control comes from the physical RC transmitter via 2.4GHz radio, completely bypassing WiFi. The function exists in the native library because other drones in the same app family (the "S2x" models) use it — the H120D just... doesn't.
 
-## Phase 3: Telnet — "Did It Just Ban Me?"
+#### Telnet — "Did It Just Ban Me?"
 
 Port scan revealed TCP port 23 open. Connecting drops you into an RT-Thread 2.1.0 finsh shell:
 
@@ -91,13 +174,13 @@ But here's the nasty part. After my first telnet session, the drone stopped resp
 
 **The drone bans your MAC address when you connect to telnet.** Not temporarily — it blackholes all traffic from that MAC until a full power cycle. I confirmed this by connecting with the ALFA (banned), then immediately connecting with the Arduino Nano 33 IoT (different MAC, worked perfectly). The ban is MAC-specific.
 
-### The Workaround: Arduino Telnet Bridge
+##### The Workaround: Arduino Telnet Bridge
 
 Since the Arduino has a different MAC and never gets banned, I built a telnet bridge. Serial commands `TOPEN`, `TCMD <command>`, and `TCLOSE` tunnel finsh commands through the Arduino's connection. Unlimited sessions, no power cycle needed. The only downside: the Arduino's limited buffer truncates responses longer than ~800 bytes.
 
 For big dumps, I do a "blitz" — connect directly with the ALFA, fire commands as fast as possible, accept the ban, power cycle. One blitz captured the full thread list, device list, filesystem contents, semaphores, mutexes, timers, and event flags in 5 seconds.
 
-## Phase 4: Video — "That's Not RTSP"
+#### Video — "That's Not RTSP"
 
 Port 554 (RTSP) accepts connections but never delivers any frames. The real video path is TCP 8888. Send an 11-byte heartbeat (`01 02 03 04 05 06 07 08 09 28 28`), keep it going at 1Hz, and the drone pushes H.264 wrapped in custom 44-byte frame headers.
 
@@ -109,7 +192,7 @@ python live_video.py
 
 1280×720, 25fps, Main profile, YUV420P. Clean enough to pipe straight to ffmpeg for recording.
 
-## Phase 5: First Flight
+#### First Flight
 
 With the protocol fully mapped, I built an autonomous controller on the Arduino Nano 33 IoT. It connects to the drone WiFi, performs the full handshake, streams GPS packets at 5Hz, maintains heartbeat at 1Hz, and sends flight command bursts on serial command.
 
@@ -119,7 +202,7 @@ One catch: the physical RC still needs to arm the motors first. I haven't found 
 
 The takeoff also produces a slight diagonal drift, likely from the hardcoded trim values (`0x20, 0x20`). The stock app presumably calibrates trims at startup, but I haven't captured that sequence yet.
 
-## What's Published
+#### What's Published
 
 Everything is on GitHub: **[zturner1/h120d-protocol](https://github.com/zturner1/h120d-protocol)**
 
@@ -133,7 +216,7 @@ Everything is on GitHub: **[zturner1/h120d-protocol](https://github.com/zturner1
 
 This is the first public documentation of the H120D's protocol. The drone shares a protocol family with other Holy Stone/Vison models (S20, S29, K417), but uses the "Heliway Hy" wire format variant rather than the S2x format documented by TurboDrone.
 
-## Open Questions
+#### Open Questions
 
 - **Motor arm over WiFi** — The `lockUnlock` flag exists but is untested. Finding this would eliminate the RC dependency entirely.
 - **TCP 8830** — Discovered via `list_tcps()` in the finsh shell. Something is listening. Haven't connected yet.
@@ -142,22 +225,3 @@ This is the first public documentation of the H120D's protocol. The drone shares
 - **Diagonal takeoff** — Trim calibration or missing gyro cal command? Need to capture what the stock app sends before first flight after power-on.
 
 If you have an H120D (or any `com.vison.macrochip` drone), grab the scripts and try it. PRs welcome.
-
----
-
-*Submit to: https://hackaday.com/submit-a-tip/ or post as a project on hackaday.io*
-*Use the shorter version below for the tip submission form, link to the full writeup.*
-
----
-
-## Short Version (for tip submission form)
-
-**Title:** Reverse-Engineering the Holy Stone H120D GPS Drone — Complete Protocol Docs and Autonomous Flight
-
-I reverse-engineered the WiFi protocol of the Holy Stone H120D GPS drone by decompiling the stock Android app, capturing packets, disassembling the native ARM library, and exploring the onboard RT-Thread RTOS via telnet.
-
-Key findings: The drone runs a Fullhan Micro SoC (not HiSilicon as the app's code suggests), bans your MAC address if you connect to its telnet shell, and the stock app never actually sends joystick data over WiFi — it only sends takeoff/land flags with axes hardcoded to center.
-
-Published complete protocol docs, working Python/Arduino control scripts, and achieved autonomous takeoff/landing over WiFi. First public documentation of this drone's protocol.
-
-GitHub: https://github.com/zturner1/h120d-protocol
